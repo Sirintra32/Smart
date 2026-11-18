@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>SmartLiving Property</title>
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --brown: #6b4f3a;
+    --brown-dark: #4a3628;
+    --brown-light: #a68a6d;
+    --cream: #f7f3ee;
+    --line: #e6ddd2;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: "Prompt", sans-serif; font-weight: 300; max-width: 720px; margin: 40px auto; padding: 0 16px; background: var(--cream); color: var(--brown-dark); line-height: 1.6; }
+  h1 { text-align: center; font-weight: 500; letter-spacing: 1px; color: var(--brown); margin-bottom: 32px; }
+  .box { background: #fff; padding: 24px; margin-bottom: 20px; border: 1px solid var(--line); border-radius: 12px; }
+  h3 { margin-top: 0; font-weight: 500; font-size: 16px; color: var(--brown); padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  p { margin: 16px 0 6px; font-size: 14px; }
+  b { font-weight: 500; }
+  label { font-size: 13px; color: var(--brown-light); }
+  input { width: 100%; padding: 10px 12px; margin: 4px 0 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--cream); font-family: inherit; font-size: 14px; color: var(--brown-dark); outline: none; transition: border-color .2s; }
+  input:focus { border-color: var(--brown-light); background: #fff; }
+  button { padding: 9px 18px; margin: 4px 6px 4px 0; border: 1px solid var(--brown); border-radius: 8px; background: var(--brown); color: #fff; font-family: inherit; font-size: 14px; cursor: pointer; transition: all .2s; }
+  button:hover { background: #fff; color: var(--brown); }
+  pre { background: var(--cream); border: 1px solid var(--line); border-radius: 8px; padding: 14px; white-space: pre-wrap; font-family: inherit; font-size: 13px; }
+  #account { font-size: 13px; color: var(--brown-light); word-break: break-all; }
+  #status { font-size: 13px; font-weight: 400; color: var(--brown); }
+</style>
+</head>
+<body>
+
+<h1>SmartLiving Property</h1>
+
+<!-- เชื่อมต่อ Wallet -->
+<div class="box">
+  <button onclick="connect()">Connect MetaMask</button>
+  <p>Account: <span id="account">-</span></p>
+  <p id="status"></p>
+</div>
+
+<!-- 1. ลงทะเบียนทรัพย์สิน -->
+<div class="box">
+  <h3>1. ลงทะเบียนทรัพย์สิน (เจ้าของห้อง)</h3>
+  <input id="pName" placeholder="ชื่อห้อง เช่น Room 101">
+  <input id="pRent" placeholder="ค่าเช่าต่องวด (ETH) เช่น 0.001">
+  <input id="pDeposit" placeholder="เงินประกัน (ETH) เช่น 0.01">
+  <button onclick="registerProperty()">Register</button>
+</div>
+
+<!-- 2. สร้างสัญญา -->
+<div class="box">
+  <h3>2. สร้างสัญญาเช่า (เจ้าของห้อง)</h3>
+  <input id="cPropId" placeholder="Property ID">
+  <input id="cTenant" placeholder="Address ผู้เช่า 0x...">
+  <label>วันเริ่มต้น</label> <input id="cStart" type="datetime-local">
+  <label>วันสิ้นสุด</label> <input id="cEnd" type="datetime-local">
+  <input id="cTerms" placeholder="เงื่อนไขสำคัญ">
+  <button onclick="createAgreement()">Create Agreement</button>
+</div>
+
+<!-- 3-7 จัดการสัญญา -->
+<div class="box">
+  <h3>จัดการสัญญา</h3>
+  <input id="aId" placeholder="Agreement ID">
+
+  <p><b>3. ยืนยันสัญญา</b> (เจ้าของห้อง / ผู้เช่า)</p>
+  <button onclick="confirmAgreement()">Confirm</button>
+
+  <p><b>4-5. ผู้เช่าจ่ายเงิน</b> (ระบบดึงยอดจากสัญญาให้อัตโนมัติ)</p>
+  <button onclick="depositSecurity()">ฝากเงินประกัน</button>
+  <button onclick="payRent()">จ่ายค่าเช่า</button>
+
+  <p><b>6. ตรวจห้อง / คืนเงินประกัน</b></p>
+  <input id="dAmount" placeholder="ยอดที่ขอหัก (ETH) ใส่ 0 ถ้าไม่หัก">
+  <input id="dReason" placeholder="เหตุผล">
+  <button onclick="proposeDeduction()">เจ้าของห้อง: เสนอยอดหัก</button>
+  <button onclick="acceptDeduction()">ผู้เช่า: ยอมรับ & รับเงินคืน</button>
+
+  <p><b>[เพิ่มเติม] ยกเลิกสัญญา</b> (ก่อนฝากเงินประกันเท่านั้น)</p>
+  <button onclick="cancelAgreement()">ยกเลิกสัญญา</button>
+
+  <p><b>[เพิ่มเติม] ต่อสัญญา</b></p>
+  <label>วันสิ้นสุดใหม่</label> <input id="extEnd" type="datetime-local">
+  <button onclick="requestExtension()">ผู้เช่า: ขอต่อสัญญา</button>
+  <button onclick="approveExtension()">เจ้าของห้อง: อนุมัติ</button>
+
+  <p><b>7. ข้อพิพาท</b></p>
+  <input id="disReason" placeholder="เหตุผลที่ไม่ยอมรับ / ผลการตัดสิน">
+  <input id="disAmount" placeholder="ยอดหักที่อนุมัติ (ETH) - สำหรับผู้มีอำนาจ">
+  <button onclick="raiseDispute()">ผู้เช่า: เปิดข้อพิพาท</button>
+  <button onclick="resolveDispute()">ผู้มีอำนาจ: ตัดสิน & ปล่อยเงิน</button>
+</div>
+
+<!-- ดูข้อมูล -->
+<div class="box">
+  <h3>ดูข้อมูลสัญญาและประวัติค่าเช่า</h3>
+  <button onclick="viewAgreement()">ดูข้อมูล (ใช้ Agreement ID ด้านบน)</button>
+  <pre id="info">-</pre>
+</div>
+
+<script>
+// ===== ใส่ Address ของ contract ที่ deploy แล้วตรงนี้ =====
+const CONTRACT_ADDRESS = "0xC7f17812218D3dE5f15A7B9B2D920bf7e0d322Fb";
+
+const ABI = [
+  "function registerProperty(string _name, uint _rent, uint _deposit)",
+  "function createAgreement(uint _propertyId, address _tenant, uint _startDate, uint _endDate, string _terms)",
+  "function confirmAgreement(uint _id)",
+  "function depositSecurity(uint _id) payable",
+  "function payRent(uint _id) payable",
+  "function proposeDeduction(uint _id, uint _amount, string _reason)",
+  "function acceptDeduction(uint _id)",
+  "function raiseDispute(uint _id, string _reason)",
+  "function resolveDispute(uint _id, uint _approvedDeduction, string _note)",
+  "function properties(uint) view returns (address owner, string name, uint rent, uint deposit)",
+  "function getAgreement(uint _id) view returns (tuple(uint propertyId, address landlord, address tenant, uint startDate, uint endDate, string terms, bool landlordConfirmed, bool tenantConfirmed, uint depositBalance, uint deduction, string reason, uint8 status, uint requestedEndDate))",
+  "function payments(uint, uint) view returns (uint amount, uint time)",
+  "function getPaymentCount(uint _id) view returns (uint)",
+  "function arbitrator() view returns (address)",
+  "function cancelAgreement(uint _id)",
+  "function requestExtension(uint _id, uint _newEndDate)",
+  "function approveExtension(uint _id)"
+];
+
+const STATUS = ["Created", "Active", "Inspected", "Disputed", "Closed", "Cancelled"];
+let contract;
+
+const $ = id => document.getElementById(id).value.trim();
+const show = msg => document.getElementById("status").innerText = msg;
+const toDate = ts => new Date(Number(ts) * 1000).toLocaleString("th-TH");
+const toTs = id => Math.floor(new Date($(id)).getTime() / 1000);
+
+async function connect() {
+  if (!window.ethereum) return alert("กรุณาติดตั้ง MetaMask");
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  await provider.send("eth_requestAccounts", []);
+  const signer = await provider.getSigner();
+  contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+  document.getElementById("account").innerText = await signer.getAddress();
+  show("เชื่อมต่อแล้ว");
+}
+
+// เมื่อเปลี่ยนบัญชีใน MetaMask ให้เชื่อมใหม่อัตโนมัติ
+if (window.ethereum) window.ethereum.on("accountsChanged", connect);
+
+// ส่ง transaction + แสดงสถานะ
+async function send(fn) {
+  if (!contract) return alert("กด Connect MetaMask ก่อน");
+  try {
+    show("กำลังส่งธุรกรรม... กรุณายืนยันใน MetaMask");
+    const tx = await fn();
+    show("รอการยืนยันบน blockchain...");
+    await tx.wait();
+    show("สำเร็จ! Tx: " + tx.hash);
+  } catch (e) {
+    show("ผิดพลาด: " + (e.reason || e.shortMessage || e.message));
+  }
+}
+
+function registerProperty() {
+  send(() => contract.registerProperty($("pName"), ethers.parseEther($("pRent")), ethers.parseEther($("pDeposit"))));
+}
+
+function createAgreement() {
+  send(() => contract.createAgreement($("cPropId"), $("cTenant"), toTs("cStart"), toTs("cEnd"), $("cTerms")));
+}
+
+function confirmAgreement() {
+  send(() => contract.confirmAgreement($("aId")));
+}
+
+async function depositSecurity() {
+  const a = await contract.getAgreement($("aId"));
+  const p = await contract.properties(a.propertyId);
+  send(() => contract.depositSecurity($("aId"), { value: p.deposit }));
+}
+
+async function payRent() {
+  const a = await contract.getAgreement($("aId"));
+  const p = await contract.properties(a.propertyId);
+  send(() => contract.payRent($("aId"), { value: p.rent }));
+}
+
+function proposeDeduction() {
+  send(() => contract.proposeDeduction($("aId"), ethers.parseEther($("dAmount") || "0"), $("dReason")));
+}
+
+function acceptDeduction() {
+  send(() => contract.acceptDeduction($("aId")));
+}
+
+function raiseDispute() {
+  send(() => contract.raiseDispute($("aId"), $("disReason")));
+}
+
+function resolveDispute() {
+  send(() => contract.resolveDispute($("aId"), ethers.parseEther($("disAmount") || "0"), $("disReason")));
+}
+
+function cancelAgreement() {
+  send(() => contract.cancelAgreement($("aId")));
+}
+
+function requestExtension() {
+  send(() => contract.requestExtension($("aId"), toTs("extEnd")));
+}
+
+function approveExtension() {
+  send(() => contract.approveExtension($("aId")));
+}
+
+async function viewAgreement() {
+  if (!contract) return alert("กด Connect MetaMask ก่อน");
+  try {
+    const id = $("aId");
+    const a = await contract.getAgreement(id);
+    const p = await contract.properties(a.propertyId);
+    const count = await contract.getPaymentCount(id);
+
+    let text =
+      `ห้อง: ${p.name} (Property #${a.propertyId})\n` +
+      `ค่าเช่า: ${ethers.formatEther(p.rent)} ETH | เงินประกัน: ${ethers.formatEther(p.deposit)} ETH\n` +
+      `เจ้าของห้อง: ${a.landlord}\n` +
+      `ผู้เช่า: ${a.tenant}\n` +
+      `ระยะเวลา: ${toDate(a.startDate)} - ${toDate(a.endDate)}\n` +
+      `เงื่อนไข: ${a.terms}\n` +
+      `ยืนยันแล้ว: เจ้าของ ${a.landlordConfirmed ? "✅" : "❌"} | ผู้เช่า ${a.tenantConfirmed ? "✅" : "❌"}\n` +
+      `เงินประกันคงเหลือ: ${ethers.formatEther(a.depositBalance)} ETH\n` +
+      `ยอดหัก: ${ethers.formatEther(a.deduction)} ETH | เหตุผล: ${a.reason || "-"}\n` +
+      `สถานะ: ${STATUS[a.status]}\n` +
+      `ขอต่อสัญญาถึง: ${a.requestedEndDate > 0 ? toDate(a.requestedEndDate) + " (รออนุมัติ)" : "-"}\n\n` +
+      `ประวัติค่าเช่า (${count} งวด):\n`;
+
+    for (let i = 0; i < count; i++) {
+      const pay = await contract.payments(id, i);
+      text += `  งวดที่ ${i + 1}: ${ethers.formatEther(pay.amount)} ETH - ${toDate(pay.time)}\n`;
+    }
+    document.getElementById("info").innerText = text;
+  } catch (e) {
+    document.getElementById("info").innerText = "ไม่พบข้อมูล: " + (e.shortMessage || e.message);
+  }
+}
+</script>
+</body>
+</html>
